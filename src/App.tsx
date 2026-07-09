@@ -32,6 +32,167 @@ const sampleJson = `{
   }
 }`;
 
+const DEFAULT_TIMEZONE = "Asia/Shanghai";
+const FALLBACK_TIMEZONES = [
+  "UTC",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Asia/Singapore",
+  "Europe/London",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Africa/Abidjan",
+] as const;
+
+function getSupportedTimezones() {
+  const intlWithSupportedValues = Intl as typeof Intl & {
+    supportedValuesOf?: (key: "timeZone") => string[];
+  };
+
+  if (typeof intlWithSupportedValues.supportedValuesOf === "function") {
+    return intlWithSupportedValues.supportedValuesOf("timeZone");
+  }
+
+  return [...FALLBACK_TIMEZONES];
+}
+
+function formatDateTime(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+
+  return formatter.format(date).replace(" ", " ");
+}
+
+function getZoneOffsetLabel(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+  }).formatToParts(date);
+
+  return parts.find((part) => part.type === "timeZoneName")?.value ?? "UTC";
+}
+
+function getDateTimeParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const getValue = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+
+  return {
+    year: getValue("year"),
+    month: getValue("month"),
+    day: getValue("day"),
+    hour: getValue("hour"),
+    minute: getValue("minute"),
+    second: getValue("second"),
+  };
+}
+
+function parseDateTimeInput(value: string) {
+  const match = value.trim().match(
+    /^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute, second = "00"] = match;
+  const parsed = {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+    hour: Number(hour),
+    minute: Number(minute),
+    second: Number(second),
+  };
+
+  if (
+    parsed.month < 1 ||
+    parsed.month > 12 ||
+    parsed.day < 1 ||
+    parsed.day > 31 ||
+    parsed.hour > 23 ||
+    parsed.minute > 59 ||
+    parsed.second > 59
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function zonedDateTimeToTimestamp(value: string, timeZone: string) {
+  const parsed = parseDateTimeInput(value);
+
+  if (!parsed) {
+    return null;
+  }
+
+  const utcGuess = Date.UTC(
+    parsed.year,
+    parsed.month - 1,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second,
+  );
+
+  const guessDate = new Date(utcGuess);
+  const zonedParts = getDateTimeParts(guessDate, timeZone);
+  const desiredLocalMs = Date.UTC(
+    parsed.year,
+    parsed.month - 1,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second,
+  );
+  const guessedLocalMs = Date.UTC(
+    zonedParts.year,
+    zonedParts.month - 1,
+    zonedParts.day,
+    zonedParts.hour,
+    zonedParts.minute,
+    zonedParts.second,
+  );
+
+  const timestampMs = utcGuess + (desiredLocalMs - guessedLocalMs);
+  const verified = getDateTimeParts(new Date(timestampMs), timeZone);
+
+  if (
+    verified.year !== parsed.year ||
+    verified.month !== parsed.month ||
+    verified.day !== parsed.day ||
+    verified.hour !== parsed.hour ||
+    verified.minute !== parsed.minute ||
+    verified.second !== parsed.second
+  ) {
+    return null;
+  }
+
+  return timestampMs;
+}
+
 function getInitialTheme(): ThemeMode {
   const saved = localStorage.getItem(THEME_STORAGE_KEY);
   return saved === "light" ? "light" : "dark";
@@ -54,9 +215,22 @@ function App() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [timestampCopied, setTimestampCopied] = useState<"" | "datetime" | "timestamp">("");
+  const [timestampInput, setTimestampInput] = useState("1783580932");
+  const [timestampUnit, setTimestampUnit] = useState<"s" | "ms">("s");
+  const [selectedTimezone, setSelectedTimezone] = useState(DEFAULT_TIMEZONE);
+  const [convertedTime, setConvertedTime] = useState("2026-07-09 07:08:52");
+  const [timestampError, setTimestampError] = useState("");
+  const [dateTimeInput, setDateTimeInput] = useState("2026-07-09 15:08:52");
+  const [reverseUnit, setReverseUnit] = useState<"s" | "ms">("s");
+  const [convertedTimestamp, setConvertedTimestamp] = useState("1783570932");
+  const [dateTimeError, setDateTimeError] = useState("");
+  const [now, setNow] = useState(() => new Date());
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [updateError, setUpdateError] = useState("");
+  const [timezones] = useState<string[]>(() => getSupportedTimezones());
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -71,6 +245,15 @@ function App() {
     const timer = window.setTimeout(() => setCopied(false), 2000);
     return () => window.clearTimeout(timer);
   }, [copied]);
+
+  useEffect(() => {
+    if (!timestampCopied) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setTimestampCopied(""), 2000);
+    return () => window.clearTimeout(timer);
+  }, [timestampCopied]);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +292,11 @@ function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const toggleSection = (sectionKey: SectionKey) => {
@@ -163,6 +351,86 @@ function App() {
     setErrorMsg("");
     setCopied(false);
   };
+
+  const handleCopyText = async (
+    value: string,
+    target: "datetime" | "timestamp",
+  ) => {
+    if (!value) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(value);
+    setTimestampCopied(target);
+  };
+
+  const handleTimestampConvert = () => {
+    const normalized = timestampInput.trim();
+
+    if (!normalized) {
+      setConvertedTime("");
+      setTimestampError(t("timestamp.emptyError"));
+      return;
+    }
+
+    if (!/^-?\d+$/.test(normalized)) {
+      setConvertedTime("");
+      setTimestampError(t("timestamp.invalidError"));
+      return;
+    }
+
+    const rawValue = Number(normalized);
+    const timestampValue = timestampUnit === "s" ? rawValue * 1000 : rawValue;
+    const date = new Date(timestampValue);
+
+    if (Number.isNaN(date.getTime())) {
+      setConvertedTime("");
+      setTimestampError(t("timestamp.rangeError"));
+      return;
+    }
+
+    try {
+      setConvertedTime(formatDateTime(date, selectedTimezone));
+      setTimestampError("");
+    } catch {
+      setConvertedTime("");
+      setTimestampError(t("timestamp.timezoneError"));
+    }
+  };
+
+  const handleDateTimeConvert = () => {
+    const normalized = dateTimeInput.trim();
+
+    if (!normalized) {
+      setConvertedTimestamp("");
+      setDateTimeError(t("timestamp.reverseEmptyError"));
+      return;
+    }
+
+    const timestampMs = zonedDateTimeToTimestamp(normalized, selectedTimezone);
+
+    if (timestampMs === null || Number.isNaN(timestampMs)) {
+      setConvertedTimestamp("");
+      setDateTimeError(t("timestamp.reverseInvalidError"));
+      return;
+    }
+
+    setConvertedTimestamp(
+      reverseUnit === "ms" ? String(timestampMs) : String(Math.floor(timestampMs / 1000)),
+    );
+    setDateTimeError("");
+  };
+
+  const handleFillCurrentDateTime = () => {
+    const current = formatDateTime(now, selectedTimezone);
+    setDateTimeInput(current);
+    setDateTimeError("");
+  };
+
+  useEffect(() => {
+    handleTimestampConvert();
+    handleDateTimeConvert();
+  }, [selectedTimezone, reverseUnit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCheckUpdates = async () => {
     setUpdateStatus("checking");
@@ -377,6 +645,178 @@ function App() {
     </section>
   );
 
+  const renderTimestampPage = () => (
+    <section className="timestamp-page">
+      <div className="timestamp-layout">
+        <div className="timestamp-now-card">
+          <div className="timestamp-result-label">{t("timestamp.referenceNow")}</div>
+          <strong>{formatDateTime(now, localTimezone)}</strong>
+          <span className="timestamp-offset">
+            {localTimezone} · {getZoneOffsetLabel(now, localTimezone)}
+          </span>
+        </div>
+
+        <div className="timestamp-card">
+          <div className="timestamp-card-title">{t("timestamp.forwardTitle")}</div>
+          <div className="timestamp-grid timestamp-grid-forward">
+            <div className="timestamp-field">
+              <label htmlFor="timestamp-input">{t("timestamp.inputLabel")}</label>
+              <input
+                id="timestamp-input"
+                className="timestamp-input"
+                value={timestampInput}
+                placeholder={t("timestamp.inputPlaceholder")}
+                onChange={(event) => {
+                  setTimestampInput(event.target.value);
+                  setTimestampError("");
+                }}
+              />
+            </div>
+
+            <div className="timestamp-field">
+              <label htmlFor="timestamp-unit">{t("timestamp.unitLabel")}</label>
+              <select
+                id="timestamp-unit"
+                className="timestamp-select"
+                value={timestampUnit}
+                onChange={(event) => setTimestampUnit(event.target.value as "s" | "ms")}
+              >
+                <option value="s">{t("timestamp.unitSeconds")}</option>
+                <option value="ms">{t("timestamp.unitMilliseconds")}</option>
+              </select>
+            </div>
+
+            <button type="button" className="primary-button timestamp-convert-button" onClick={handleTimestampConvert}>
+              {t("timestamp.convertAction")}
+            </button>
+
+            <div className="timestamp-field">
+              <label htmlFor="timestamp-output">{t("timestamp.resultLabel")}</label>
+              <div className="timestamp-result-input-group">
+                <input id="timestamp-output" className="timestamp-input" value={convertedTime} readOnly />
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => {
+                    void handleCopyText(convertedTime, "datetime");
+                  }}
+                  disabled={!convertedTime}
+                >
+                  {timestampCopied === "datetime" ? t("common.copied") : t("common.copy")}
+                </button>
+              </div>
+            </div>
+
+            <div className="timestamp-field">
+              <label htmlFor="timestamp-timezone">{t("timestamp.timezoneLabel")}</label>
+              <select
+                id="timestamp-timezone"
+                className="timestamp-select"
+                value={selectedTimezone}
+                onChange={(event) => setSelectedTimezone(event.target.value)}
+              >
+                {timezones.map((timezone: string) => (
+                  <option key={timezone} value={timezone}>
+                    {timezone}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className={`timestamp-message ${timestampError ? "is-error" : ""}`}>
+            {timestampError || `${selectedTimezone} · ${getZoneOffsetLabel(now, selectedTimezone)}`}
+          </div>
+        </div>
+
+        <div className="timestamp-card">
+          <div className="timestamp-card-title">{t("timestamp.reverseTitle")}</div>
+          <div className="timestamp-grid timestamp-grid-reverse">
+            <button
+              type="button"
+              className="secondary-button timestamp-now-button"
+              onClick={handleFillCurrentDateTime}
+            >
+              {t("timestamp.fillNowAction")}
+            </button>
+
+            <div className="timestamp-field">
+              <label htmlFor="datetime-input">{t("timestamp.reverseInputLabel")}</label>
+              <input
+                id="datetime-input"
+                className="timestamp-input"
+                value={dateTimeInput}
+                placeholder={t("timestamp.reverseInputPlaceholder")}
+                onChange={(event) => {
+                  setDateTimeInput(event.target.value);
+                  setDateTimeError("");
+                }}
+              />
+            </div>
+
+            <button
+              type="button"
+              className="primary-button timestamp-convert-button"
+              onClick={handleDateTimeConvert}
+            >
+              {t("timestamp.convertAction")}
+            </button>
+
+            <div className="timestamp-field">
+              <label htmlFor="reverse-unit">{t("timestamp.unitLabel")}</label>
+              <select
+                id="reverse-unit"
+                className="timestamp-select"
+                value={reverseUnit}
+                onChange={(event) => setReverseUnit(event.target.value as "s" | "ms")}
+              >
+                <option value="s">{t("timestamp.unitSeconds")}</option>
+                <option value="ms">{t("timestamp.unitMilliseconds")}</option>
+              </select>
+            </div>
+
+            <div className="timestamp-field">
+              <label htmlFor="reverse-output">{t("timestamp.reverseTimestampLabel")}</label>
+              <div className="timestamp-result-input-group">
+                <input id="reverse-output" className="timestamp-input" value={convertedTimestamp} readOnly />
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => {
+                    void handleCopyText(convertedTimestamp, "timestamp");
+                  }}
+                  disabled={!convertedTimestamp}
+                >
+                  {timestampCopied === "timestamp" ? t("common.copied") : t("common.copy")}
+                </button>
+              </div>
+            </div>
+
+            <div className="timestamp-field">
+              <label htmlFor="reverse-timezone">{t("timestamp.timezoneLabel")}</label>
+              <select
+                id="reverse-timezone"
+                className="timestamp-select"
+                value={selectedTimezone}
+                onChange={(event) => setSelectedTimezone(event.target.value)}
+              >
+                {timezones.map((timezone: string) => (
+                  <option key={timezone} value={timezone}>
+                    {timezone}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className={`timestamp-message ${dateTimeError ? "is-error" : ""}`}>
+            {dateTimeError || `${selectedTimezone} · ${getZoneOffsetLabel(now, selectedTimezone)}`}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
   const renderPlaceholder = () => (
     <section className="placeholder-panel">
       <div className="placeholder-card">
@@ -513,8 +953,9 @@ function App() {
         </header>
 
         {activeTool === "json" && renderJsonPage()}
+        {activeTool === "timestamp" && renderTimestampPage()}
         {activeTool === "settings" && renderSettingsPage()}
-        {activeTool !== "json" && activeTool !== "settings" && renderPlaceholder()}
+        {activeTool !== "json" && activeTool !== "timestamp" && activeTool !== "settings" && renderPlaceholder()}
       </main>
     </div>
   );

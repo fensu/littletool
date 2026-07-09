@@ -380,7 +380,8 @@ button {
 
 .panel,
 .placeholder-panel,
-.settings-page {
+.settings-page,
+.timestamp-page {
   flex: 1;
   min-height: 0;
 }
@@ -518,7 +519,8 @@ button {
 }
 
 .placeholder-panel,
-.settings-page {
+.settings-page,
+.timestamp-page {
   padding: 32px;
 }
 
@@ -563,6 +565,143 @@ button {
 
 .settings-card {
   padding: 28px;
+}
+
+.timestamp-layout {
+  width: min(1160px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.timestamp-card,
+.timestamp-now-card {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+}
+
+.timestamp-card {
+  padding: 24px;
+}
+
+.timestamp-now-card {
+  width: fit-content;
+  min-width: 320px;
+  padding: 18px 20px;
+}
+
+.timestamp-now-card strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 24px;
+  line-height: 1.25;
+  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.timestamp-card-title,
+.timestamp-result-label {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.timestamp-card-title {
+  margin-bottom: 16px;
+}
+
+.timestamp-grid {
+  display: grid;
+  gap: 16px;
+  align-items: end;
+}
+
+.timestamp-grid-forward {
+  grid-template-columns: minmax(0, 1.4fr) 140px 116px minmax(0, 1.6fr) minmax(220px, 1.2fr);
+}
+
+.timestamp-grid-reverse {
+  grid-template-columns: 150px minmax(0, 1.4fr) 116px 140px minmax(0, 1.35fr) minmax(220px, 1.2fr);
+}
+
+.timestamp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timestamp-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.timestamp-input,
+.timestamp-select {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
+  color: var(--text-main);
+  outline: none;
+}
+
+.timestamp-input:focus,
+.timestamp-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.timestamp-convert-button,
+.timestamp-now-button {
+  height: 44px;
+}
+
+.timestamp-result-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.timestamp-result-input-group .timestamp-input {
+  flex: 1;
+  min-width: 0;
+  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.timestamp-offset {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--panel-mid);
+  color: var(--text-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.timestamp-message {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--panel-mid);
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.timestamp-message.is-error {
+  background: var(--error-bg);
+  color: var(--error-text);
 }
 
 .settings-header h2 {
@@ -733,6 +872,11 @@ button {
   .theme-grid {
     grid-template-columns: 1fr;
   }
+
+  .timestamp-grid-forward,
+  .timestamp-grid-reverse {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -757,7 +901,37 @@ button {
   }
 
   .placeholder-panel,
-  .settings-page {
+  .settings-page,
+  .timestamp-page {
     padding: 16px;
+  }
+
+  .timestamp-card {
+    padding: 16px;
+  }
+
+  .timestamp-layout {
+    gap: 16px;
+  }
+
+  .timestamp-now-card {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .timestamp-grid-forward,
+  .timestamp-grid-reverse {
+    grid-template-columns: 1fr;
+  }
+
+  .timestamp-result-input-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .timestamp-result-input-group .ghost-button,
+  .timestamp-convert-button,
+  .timestamp-now-button {
+    width: 100%;
   }
 }
