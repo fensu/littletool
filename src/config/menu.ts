@@ -2,6 +2,7 @@ export type SectionKey = "basic" | "ops" | "docs" | "todo";
 export type ToolKey =
   | "json"
   | "timestamp"
+  | "ssh"
   | "redis"
   | "mq"
   | "es"
@@ -53,6 +54,11 @@ export const menuSections: MenuSection[] = [
     icon: "运",
     items: [
       {
+        key: "ssh",
+        labelKey: "tools.ssh.label",
+        descriptionKey: "tools.ssh.description",
+      },
+      {
         key: "redis",
         labelKey: "tools.redis.label",
         descriptionKey: "tools.redis.description",
@@ -103,6 +109,7 @@ export const menuSections: MenuSection[] = [
 export const toolKeys: ToolKey[] = [
   "json",
   "timestamp",
+  "ssh",
   "redis",
   "mq",
   "es",
