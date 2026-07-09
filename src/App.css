@@ -659,6 +659,57 @@ button {
   line-height: 1.7;
 }
 
+.updater-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.updater-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.updater-label {
+  color: var(--text-soft);
+}
+
+.updater-note {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--panel-mid);
+  color: var(--text-main);
+}
+
+.updater-note-checking,
+.updater-note-installing {
+  background: var(--panel-mid);
+}
+
+.updater-note-latest,
+.updater-note-installed {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.updater-note-available {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.updater-note-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.updater-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 960px) {
   .editor-layout {
     flex-direction: column;

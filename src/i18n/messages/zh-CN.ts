@@ -38,6 +38,20 @@ export const zhCN = {
     aboutGroup: "工具描述",
     aboutText:
       "LittleTool 是一个面向开发与运维场景的轻量桌面工具箱，聚焦高频小工具的快速使用，默认中文，支持基础 i18n，强调开箱即用、界面清晰和尽量少依赖。",
+    updaterGroup: "版本更新",
+    updaterCurrentVersion: "当前版本",
+    updaterTargetVersion: "可用版本",
+    updaterChecking: "正在检查更新...",
+    updaterLatest: "当前已经是最新版本。",
+    updaterAvailable: "检测到新版本，可以直接下载安装。",
+    updaterIdle: "未执行更新检查。",
+    updaterInstall: "下载并安装更新",
+    updaterRetry: "重新检查",
+    updaterInstalling: "正在下载并安装更新...",
+    updaterInstalled: "更新包已处理完成，请按提示重启应用。",
+    updaterError: "更新检查失败或安装失败。",
+    updaterUnavailable:
+      "当前环境未返回更新结果。通常只有通过 Tauri 桌面应用运行时才会生效。",
   },
   languages: {
     "zh-CN": {

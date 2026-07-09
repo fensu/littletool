@@ -1,13 +1,24 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "littletool",
-  "version": "0.1.0",
+  "productName": "LittleTool",
+  "version": "0.0.1",
   "identifier": "yifeng.littletool",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5RUUyQTg1RjQzNzdGQkQKUldTOWZ6ZjBoU3J1ZWVBTUpJSnhKbDlOd1dFYVllSmtmOWQ0SVVqNXlUNWxsUTAvMU12NzJFRXEK",
+      "endpoints": [
+        "https://github.com/fensu/littletool/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   },
   "app": {
     "windows": [
@@ -24,6 +35,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

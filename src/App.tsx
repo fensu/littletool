@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { check } from "@tauri-apps/plugin-updater";
+import packageJson from "../package.json";
 import { getToolDescriptionKey, getToolLabelKey, menuSections, type SectionKey, type ToolKey } from "./config/menu";
 import { locales as supportedLocales } from "./i18n/config";
 import { useI18n } from "./i18n/I18nProvider";
@@ -6,8 +8,18 @@ import "./App.css";
 
 type ThemeMode = "dark" | "light";
 type Status = "idle" | "valid" | "error";
+type UpdateStatus =
+  | "idle"
+  | "checking"
+  | "latest"
+  | "available"
+  | "installing"
+  | "installed"
+  | "error";
 
 const THEME_STORAGE_KEY = "littletool-theme";
+const APP_VERSION = packageJson.version;
+type UpdateInfo = NonNullable<Awaited<ReturnType<typeof check>>>;
 
 const sampleJson = `{
   "name": "littletool",
@@ -42,6 +54,9 @@ function App() {
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+  const [updateError, setUpdateError] = useState("");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -56,6 +71,45 @@ function App() {
     const timer = window.setTimeout(() => setCopied(false), 2000);
     return () => window.clearTimeout(timer);
   }, [copied]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkForUpdates = async () => {
+      setUpdateStatus("checking");
+      setUpdateError("");
+
+      try {
+        const nextUpdate = await check();
+        if (cancelled) {
+          return;
+        }
+
+        if (nextUpdate) {
+          setUpdateInfo(nextUpdate);
+          setUpdateStatus("available");
+          return;
+        }
+
+        setUpdateInfo(null);
+        setUpdateStatus("latest");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setUpdateInfo(null);
+        setUpdateStatus("error");
+        setUpdateError(error instanceof Error ? error.message : "Updater check failed");
+      }
+    };
+
+    void checkForUpdates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleSection = (sectionKey: SectionKey) => {
     setExpandedSections((current) => ({
@@ -108,6 +162,44 @@ function App() {
     setStatus("idle");
     setErrorMsg("");
     setCopied(false);
+  };
+
+  const handleCheckUpdates = async () => {
+    setUpdateStatus("checking");
+    setUpdateError("");
+
+    try {
+      const nextUpdate = await check();
+      if (nextUpdate) {
+        setUpdateInfo(nextUpdate);
+        setUpdateStatus("available");
+        return;
+      }
+
+      setUpdateInfo(null);
+      setUpdateStatus("latest");
+    } catch (error) {
+      setUpdateInfo(null);
+      setUpdateStatus("error");
+      setUpdateError(error instanceof Error ? error.message : "Updater check failed");
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!updateInfo) {
+      return;
+    }
+
+    setUpdateStatus("installing");
+    setUpdateError("");
+
+    try {
+      await updateInfo.downloadAndInstall();
+      setUpdateStatus("installed");
+    } catch (error) {
+      setUpdateStatus("error");
+      setUpdateError(error instanceof Error ? error.message : "Updater install failed");
+    }
   };
 
   const renderJsonPage = () => (
@@ -233,6 +325,53 @@ function App() {
         <div className="settings-group">
           <div className="settings-group-title">{t("settings.aboutGroup")}</div>
           <div className="about-card">{t("settings.aboutText")}</div>
+        </div>
+
+        <div className="settings-group">
+          <div className="settings-group-title">{t("settings.updaterGroup")}</div>
+          <div className="about-card updater-card">
+            <div className="updater-row">
+              <span className="updater-label">{t("settings.updaterCurrentVersion")}</span>
+              <strong>{APP_VERSION}</strong>
+            </div>
+            <div className="updater-row">
+              <span className="updater-label">{t("settings.updaterTargetVersion")}</span>
+              <strong>{updateInfo?.version ?? "-"}</strong>
+            </div>
+            <div className={`updater-note updater-note-${updateStatus}`}>
+              {updateStatus === "checking" && t("settings.updaterChecking")}
+              {updateStatus === "latest" && t("settings.updaterLatest")}
+              {updateStatus === "available" && t("settings.updaterAvailable")}
+              {updateStatus === "idle" && t("settings.updaterIdle")}
+              {updateStatus === "installing" && t("settings.updaterInstalling")}
+              {updateStatus === "installed" && t("settings.updaterInstalled")}
+              {updateStatus === "error" &&
+                (updateError
+                  ? `${t("settings.updaterError")} ${updateError}`
+                  : t("settings.updaterUnavailable"))}
+            </div>
+            <div className="updater-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  void handleCheckUpdates();
+                }}
+              >
+                {t("settings.updaterRetry")}
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!updateInfo || updateStatus === "installing"}
+                onClick={() => {
+                  void handleInstallUpdate();
+                }}
+              >
+                {t("settings.updaterInstall")}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </section>

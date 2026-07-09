@@ -41,6 +41,20 @@ export const enUS: MessageSchema = {
     aboutGroup: "Tool Description",
     aboutText:
       "LittleTool is a lightweight desktop toolbox for development and operations work, focused on fast access to high-frequency utilities with a clear UI, sensible defaults, and minimal dependencies.",
+    updaterGroup: "Updates",
+    updaterCurrentVersion: "Current version",
+    updaterTargetVersion: "Available version",
+    updaterChecking: "Checking for updates...",
+    updaterLatest: "You are already on the latest version.",
+    updaterAvailable: "A new version is available and can be downloaded now.",
+    updaterIdle: "No update check has been run yet.",
+    updaterInstall: "Download and install update",
+    updaterRetry: "Check again",
+    updaterInstalling: "Downloading and installing update...",
+    updaterInstalled: "The update package has been processed. Restart the app when prompted.",
+    updaterError: "Update check or installation failed.",
+    updaterUnavailable:
+      "No update result is available in the current environment. This usually only works inside the Tauri desktop app.",
   },
   languages: {
     "zh-CN": {
