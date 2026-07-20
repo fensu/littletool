@@ -5,6 +5,8 @@ import { getToolDescriptionKey, getToolLabelKey, menuSections, type SectionKey, 
 import { locales as supportedLocales } from "./i18n/config";
 import { useI18n } from "./i18n/I18nProvider";
 import { SshPage } from "./tools/ssh/SshPage";
+import { TodoPage } from "./tools/todo/TodoPage";
+import { CmdsPage } from "./tools/cmds/CmdsPage";
 import "./App.css";
 
 type ThemeMode = "dark" | "light";
@@ -952,10 +954,14 @@ function App() {
         {activeTool === "json" && renderJsonPage()}
         {activeTool === "timestamp" && renderTimestampPage()}
         {activeTool === "ssh" && <SshPage themeMode={theme} />}
+        {activeTool === "todo" && <TodoPage />}
+        {activeTool === "cmds" && <CmdsPage />}
         {activeTool === "settings" && renderSettingsPage()}
         {activeTool !== "json" &&
           activeTool !== "timestamp" &&
           activeTool !== "ssh" &&
+          activeTool !== "todo" &&
+          activeTool !== "cmds" &&
           activeTool !== "settings" &&
           renderPlaceholder()}
       </main>
@@ -964,6 +970,8 @@ function App() {
 }
 
 export default App;
+
+
 
 
 

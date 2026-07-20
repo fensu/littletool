@@ -9,6 +9,7 @@ export type ToolKey =
   | "ocr"
   | "convert"
   | "todo"
+  | "cmds"
   | "settings";
 
 export type MenuSection = {
@@ -57,6 +58,11 @@ export const menuSections: MenuSection[] = [
         key: "ssh",
         labelKey: "tools.ssh.label",
         descriptionKey: "tools.ssh.description",
+      },
+      {
+        key: "cmds",
+        labelKey: "tools.cmds.label",
+        descriptionKey: "tools.cmds.description",
       },
       {
         key: "redis",
@@ -116,6 +122,7 @@ export const toolKeys: ToolKey[] = [
   "ocr",
   "convert",
   "todo",
+  "cmds",
   "settings",
 ];
 
@@ -126,3 +133,4 @@ export function getToolLabelKey(tool: ToolKey): `tools.${ToolKey}.label` {
 export function getToolDescriptionKey(tool: ToolKey): `tools.${ToolKey}.description` {
   return `tools.${tool}.description`;
 }
+

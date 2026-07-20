@@ -1,3 +1,5 @@
+mod todo;
+mod handbook;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use ssh2::Session;
@@ -107,14 +109,14 @@ struct SshStatusEvent {
     error: Option<String>,
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
 }
 
-fn create_connection(db_path: &PathBuf) -> Result<Connection, String> {
+pub(crate) fn create_connection(db_path: &PathBuf) -> Result<Connection, String> {
     Connection::open(db_path).map_err(|error| error.to_string())
 }
 
@@ -661,6 +663,8 @@ pub fn run() {
             fs::create_dir_all(&app_data_dir).map_err(|error| error.to_string())?;
             let db_path = app_data_dir.join("littletool.sqlite");
             init_db(&db_path)?;
+            todo::init_todo_tables(&db_path)?;
+            handbook::init_handbook_tables(&db_path)?;
             app.manage(AppState {
                 db_path: Arc::new(db_path),
                 sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -678,11 +682,36 @@ pub fn run() {
             list_ssh_session_snapshots,
             write_ssh_stdin,
             resize_ssh_pty,
-            run_ssh_command
+            run_ssh_command,
+            todo::list_todo_projects,
+            todo::create_todo_project,
+            todo::rename_todo_project,
+            todo::delete_todo_project,
+            todo::get_todo_board,
+            todo::rename_todo_column,
+            todo::create_todo_column,
+            todo::create_todo_task,
+            todo::update_todo_task,
+            todo::move_todo_task,
+            todo::delete_todo_task,
+            todo::list_today_tasks,
+            todo::complete_todo_task,
+            todo::reopen_todo_task,
+            todo::list_completed_tasks,
+            handbook::list_command_runbooks,
+            handbook::get_command_runbook,
+            handbook::save_command_runbook,
+            handbook::delete_command_runbook,
+            handbook::import_command_runbook_md,
+            handbook::export_command_runbook_md,
+            handbook::list_runbook_categories
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+
 
 
 
