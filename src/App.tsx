@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import packageJson from "../package.json";
 import { getToolDescriptionKey, getToolLabelKey, menuSections, type SectionKey, type ToolKey } from "./config/menu";
 import { locales as supportedLocales } from "./i18n/config";
 import { useI18n } from "./i18n/I18nProvider";
+import { SshPage } from "./tools/ssh/SshPage";
 import "./App.css";
 
 type ThemeMode = "dark" | "light";
@@ -17,44 +17,11 @@ type UpdateStatus =
   | "installing"
   | "installed"
   | "error";
-type SshConnection = {
-  id: number;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  createdAt: number;
-  updatedAt: number;
-};
-type SshConnectionForm = {
-  id: number | null;
-  name: string;
-  host: string;
-  port: string;
-  username: string;
-  password: string;
-};
-type SshSessionSnapshot = {
-  connectionId: number;
-  connected: boolean;
-  output: string;
-  error?: string | null;
-  lastUpdatedMs: number;
-};
 type UpdateInfo = NonNullable<Awaited<ReturnType<typeof check>>>;
 
 const THEME_STORAGE_KEY = "littletool-theme";
 const APP_VERSION = packageJson.version;
 const DEFAULT_TIMEZONE = "Asia/Shanghai";
-const DEFAULT_SSH_FORM: SshConnectionForm = {
-  id: null,
-  name: "",
-  host: "",
-  port: "22",
-  username: "",
-  password: "",
-};
 const sampleJson = `{
   "name": "littletool",
   "version": "1.0.0",
@@ -102,11 +69,6 @@ function formatDateTime(date: Date, timeZone: string) {
   });
 
   return formatter.format(date).replace(" ", " ");
-}
-
-function formatLocalDateTime(date: Date | number) {
-  const target = typeof date === "number" ? new Date(date) : date;
-  return formatDateTime(target, Intl.DateTimeFormat().resolvedOptions().timeZone);
 }
 
 function getZoneOffsetLabel(date: Date, timeZone: string) {
@@ -267,25 +229,7 @@ function App() {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [updateError, setUpdateError] = useState("");
   const [timezones] = useState<string[]>(() => getSupportedTimezones());
-  const [sshConnections, setSshConnections] = useState<SshConnection[]>([]);
-  const [sshActiveId, setSshActiveId] = useState<number | null>(null);
-  const [sshSnapshots, setSshSnapshots] = useState<Record<number, SshSessionSnapshot>>({});
-  const [sshModalOpen, setSshModalOpen] = useState(false);
-  const [sshForm, setSshForm] = useState<SshConnectionForm>(DEFAULT_SSH_FORM);
-  const [sshLoading, setSshLoading] = useState(false);
-  const [sshRunning, setSshRunning] = useState(false);
-  const [sshCommand, setSshCommand] = useState("");
-  const [sshBroadcast, setSshBroadcast] = useState(true);
-  const [sshNotice, setSshNotice] = useState("");
-  const [sshError, setSshError] = useState("");
   const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const sshReadyIds = useMemo(
-    () =>
-      Object.values(sshSnapshots)
-        .filter((snapshot) => snapshot.connected)
-        .map((snapshot) => snapshot.connectionId),
-    [sshSnapshots],
-  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -354,20 +298,6 @@ function App() {
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (activeTool !== "ssh") {
-      return;
-    }
-
-    void loadSshConnections();
-    void loadSshSnapshots();
-
-    const timer = window.setInterval(() => {
-      void loadSshSnapshots();
-    }, 800);
-
-    return () => window.clearInterval(timer);
-  }, [activeTool]);
 
   const toggleSection = (sectionKey: SectionKey) => {
     setExpandedSections((current) => ({
@@ -498,191 +428,6 @@ function App() {
     handleTimestampConvert();
     handleDateTimeConvert();
   }, [selectedTimezone, reverseUnit]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const resetSshFeedback = () => {
-    setSshNotice("");
-    setSshError("");
-  };
-
-  const loadSshConnections = async () => {
-    setSshLoading(true);
-    resetSshFeedback();
-
-    try {
-      const items = await invoke<SshConnection[]>("list_ssh_connections");
-      setSshConnections(items);
-      setSshActiveId((current) => {
-        if (current && items.some((item) => item.id === current)) {
-          return current;
-        }
-
-        return items[0]?.id ?? null;
-      });
-    } catch (error) {
-      setSshError(error instanceof Error ? error.message : "SSH load failed");
-    } finally {
-      setSshLoading(false);
-    }
-  };
-
-  const loadSshSnapshots = async () => {
-    try {
-      const snapshots = await invoke<SshSessionSnapshot[]>("list_ssh_session_snapshots");
-      setSshSnapshots(
-        snapshots.reduce<Record<number, SshSessionSnapshot>>((accumulator, item) => {
-          accumulator[item.connectionId] = item;
-          return accumulator;
-        }, {}),
-      );
-    } catch (error) {
-      setSshError(error instanceof Error ? error.message : "SSH snapshot load failed");
-    }
-  };
-
-  const openCreateSshModal = () => {
-    setSshForm(DEFAULT_SSH_FORM);
-    resetSshFeedback();
-    setSshModalOpen(true);
-  };
-
-  const openEditSshModal = (connection: SshConnection) => {
-    setSshForm({
-      id: connection.id,
-      name: connection.name,
-      host: connection.host,
-      port: String(connection.port),
-      username: connection.username,
-      password: connection.password,
-    });
-    resetSshFeedback();
-    setSshModalOpen(true);
-  };
-
-  const handleSshFormChange = (field: keyof SshConnectionForm, value: string) => {
-    setSshForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
-
-  const handleSaveSshConnection = async () => {
-    if (
-      !sshForm.name.trim() ||
-      !sshForm.host.trim() ||
-      !sshForm.port.trim() ||
-      !sshForm.username.trim() ||
-      !sshForm.password.trim()
-    ) {
-      setSshError(t("ssh.formInvalid"));
-      return;
-    }
-
-    setSshLoading(true);
-    resetSshFeedback();
-
-    try {
-      await invoke<SshConnection>("save_ssh_connection", {
-        payload: {
-          id: sshForm.id,
-          name: sshForm.name.trim(),
-          host: sshForm.host.trim(),
-          port: Number(sshForm.port),
-          username: sshForm.username.trim(),
-          password: sshForm.password,
-        },
-      });
-      setSshModalOpen(false);
-      setSshNotice(t("ssh.saveSuccess"));
-      await loadSshConnections();
-      await loadSshSnapshots();
-    } catch (error) {
-      setSshError(error instanceof Error ? error.message : "SSH save failed");
-    } finally {
-      setSshLoading(false);
-    }
-  };
-
-  const handleDeleteSshConnection = async (connectionId: number) => {
-    setSshLoading(true);
-    resetSshFeedback();
-
-    try {
-      await invoke("delete_ssh_connection", { id: connectionId });
-      setSshNotice(t("ssh.deleteSuccess"));
-      setSshSnapshots((current) => {
-        const next = { ...current };
-        delete next[connectionId];
-        return next;
-      });
-      await loadSshConnections();
-    } catch (error) {
-      setSshError(error instanceof Error ? error.message : "SSH delete failed");
-    } finally {
-      setSshLoading(false);
-    }
-  };
-
-  const handleValidateSshConnection = async (connectionId: number) => {
-    setSshLoading(true);
-    resetSshFeedback();
-
-    try {
-      await invoke("open_ssh_session", { id: connectionId });
-      await loadSshSnapshots();
-      setSshNotice(t("ssh.connectSuccess"));
-    } catch (error) {
-      setSshError(error instanceof Error ? error.message : "SSH validate failed");
-    } finally {
-      setSshLoading(false);
-    }
-  };
-
-  const handleRunSshCommand = async () => {
-    const command = sshCommand.trim();
-    const targetIds = sshBroadcast
-      ? sshReadyIds
-      : sshActiveId && sshReadyIds.includes(sshActiveId)
-        ? [sshActiveId]
-        : [];
-
-    if (!command) {
-      setSshError(t("ssh.runEmptyError"));
-      return;
-    }
-
-    if (targetIds.length === 0) {
-      setSshError(t("ssh.noTargetError"));
-      return;
-    }
-
-    setSshRunning(true);
-    resetSshFeedback();
-
-    try {
-      await invoke("run_ssh_command", {
-        payload: {
-          command,
-          connectionIds: targetIds,
-        },
-      });
-      setSshNotice(t("ssh.runSuccess"));
-      setSshCommand("");
-      await loadSshSnapshots();
-    } catch (error) {
-      setSshError(error instanceof Error ? error.message : "SSH run failed");
-    } finally {
-      setSshRunning(false);
-    }
-  };
-
-  const handleSshCommandKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter" || event.shiftKey) {
-      return;
-    }
-
-    event.preventDefault();
-    void handleRunSshCommand();
-  };
 
   const handleCheckUpdates = async () => {
     setUpdateStatus("checking");
@@ -1069,222 +814,6 @@ function App() {
     </section>
   );
 
-  const renderSshPage = () => (
-    <section className="ssh-page">
-      <div className="ssh-shell">
-        <div className="ssh-toolbar">
-          <div>
-            <h2>{t("tools.ssh.label")}</h2>
-            <p>{t("tools.ssh.description")}</p>
-          </div>
-          <button type="button" className="primary-button" onClick={openCreateSshModal}>
-            {t("ssh.addConnection")}
-          </button>
-        </div>
-
-        {sshError && <div className="ssh-alert is-error">{sshError}</div>}
-        {sshNotice && <div className="ssh-alert is-success">{sshNotice}</div>}
-
-        {sshConnections.length === 0 ? (
-          <div className="ssh-empty">
-            <h3>{t("ssh.emptyTitle")}</h3>
-            <p>{t("ssh.emptyDescription")}</p>
-          </div>
-        ) : (
-          <>
-            <div className="ssh-connection-grid">
-              {sshConnections.map((connection) => {
-                const isReady = sshReadyIds.includes(connection.id);
-                const snapshot = sshSnapshots[connection.id];
-                const isActive = connection.id === sshActiveId;
-
-                return (
-                  <article
-                    key={connection.id}
-                    className={`ssh-card ${isActive ? "is-active" : ""}`}
-                    onClick={() => setSshActiveId(connection.id)}
-                  >
-                    <div className="ssh-card-header">
-                      <div>
-                        <strong>{connection.name}</strong>
-                        <span>{connection.username}@{connection.host}:{connection.port}</span>
-                      </div>
-                      <div className={`ssh-status ${isReady ? "is-ready" : ""}`}>
-                        {isReady ? t("ssh.connected") : t("ssh.disconnected")}
-                      </div>
-                    </div>
-
-                    <div className="ssh-card-meta">
-                      <span>{isActive ? t("ssh.active") : ""}</span>
-                      {snapshot && (
-                        <span>
-                          {t("ssh.lastRunAt")} {formatLocalDateTime(snapshot.lastUpdatedMs)}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="ssh-card-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleValidateSshConnection(connection.id);
-                        }}
-                        disabled={sshLoading}
-                      >
-                        {t("ssh.connectAction")}
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEditSshModal(connection);
-                        }}
-                      >
-                        {t("ssh.editAction")}
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void handleDeleteSshConnection(connection.id);
-                        }}
-                      >
-                        {t("ssh.deleteAction")}
-                      </button>
-                    </div>
-
-                    <div className="ssh-output">
-                      <div className="ssh-output-header">
-                        <span>{t("ssh.outputTitle")}</span>
-                        <span>{isReady ? t("ssh.connected") : t("ssh.disconnected")}</span>
-                      </div>
-                      <pre>
-                        {snapshot
-                          ? `${snapshot.output}${snapshot.error ? `\n${snapshot.error}` : ""}`
-                          : t("ssh.noActiveOutput")}
-                      </pre>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            <div className="ssh-command-bar">
-              <div className="ssh-command-field">
-                <label htmlFor="ssh-command">{t("ssh.commandLabel")}</label>
-                <input
-                  id="ssh-command"
-                  className="timestamp-input"
-                  value={sshCommand}
-                  placeholder={t("ssh.commandPlaceholder")}
-                  onChange={(event) => setSshCommand(event.target.value)}
-                  onKeyDown={handleSshCommandKeyDown}
-                />
-              </div>
-
-              <label className="ssh-broadcast-toggle">
-                <input
-                  type="checkbox"
-                  checked={sshBroadcast}
-                  onChange={(event) => setSshBroadcast(event.target.checked)}
-                />
-                <span>{t("ssh.broadcastLabel")}</span>
-              </label>
-
-              <button
-                type="button"
-                className="primary-button ssh-run-button"
-                onClick={() => {
-                  void handleRunSshCommand();
-                }}
-                disabled={sshRunning}
-              >
-                {sshRunning ? t("ssh.running") : t("timestamp.convertAction")}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {sshModalOpen && (
-        <div className="ssh-modal-backdrop" onClick={() => setSshModalOpen(false)}>
-          <div
-            className="ssh-modal"
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-          >
-            <div className="ssh-modal-header">
-              <h3>{sshForm.id ? t("ssh.modalTitleEdit") : t("ssh.modalTitleCreate")}</h3>
-            </div>
-
-            <div className="ssh-form-grid">
-              <div className="timestamp-field">
-                <label htmlFor="ssh-name">{t("ssh.nameLabel")}</label>
-                <input
-                  id="ssh-name"
-                  className="timestamp-input"
-                  value={sshForm.name}
-                  onChange={(event) => handleSshFormChange("name", event.target.value)}
-                />
-              </div>
-              <div className="timestamp-field">
-                <label htmlFor="ssh-host">{t("ssh.hostLabel")}</label>
-                <input
-                  id="ssh-host"
-                  className="timestamp-input"
-                  value={sshForm.host}
-                  onChange={(event) => handleSshFormChange("host", event.target.value)}
-                />
-              </div>
-              <div className="timestamp-field">
-                <label htmlFor="ssh-port">{t("ssh.portLabel")}</label>
-                <input
-                  id="ssh-port"
-                  className="timestamp-input"
-                  value={sshForm.port}
-                  onChange={(event) => handleSshFormChange("port", event.target.value)}
-                />
-              </div>
-              <div className="timestamp-field">
-                <label htmlFor="ssh-username">{t("ssh.usernameLabel")}</label>
-                <input
-                  id="ssh-username"
-                  className="timestamp-input"
-                  value={sshForm.username}
-                  onChange={(event) => handleSshFormChange("username", event.target.value)}
-                />
-              </div>
-              <div className="timestamp-field ssh-password-field">
-                <label htmlFor="ssh-password">{t("ssh.passwordLabel")}</label>
-                <input
-                  id="ssh-password"
-                  className="timestamp-input"
-                  type="password"
-                  value={sshForm.password}
-                  onChange={(event) => handleSshFormChange("password", event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="ssh-modal-actions">
-              <button type="button" className="ghost-button" onClick={() => setSshModalOpen(false)}>
-                {t("ssh.cancelAction")}
-              </button>
-              <button type="button" className="primary-button" onClick={() => void handleSaveSshConnection()}>
-                {t("ssh.saveAction")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-
   const renderPlaceholder = () => (
     <section className="placeholder-panel">
       <div className="placeholder-card">
@@ -1422,7 +951,7 @@ function App() {
 
         {activeTool === "json" && renderJsonPage()}
         {activeTool === "timestamp" && renderTimestampPage()}
-        {activeTool === "ssh" && renderSshPage()}
+        {activeTool === "ssh" && <SshPage themeMode={theme} />}
         {activeTool === "settings" && renderSettingsPage()}
         {activeTool !== "json" &&
           activeTool !== "timestamp" &&
@@ -1435,3 +964,7 @@ function App() {
 }
 
 export default App;
+
+
+
+
